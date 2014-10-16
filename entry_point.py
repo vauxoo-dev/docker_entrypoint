@@ -46,10 +46,7 @@ def main():
     '''
 
     if not path.isfile(CONFIGFILE_PATH):
-        print "No existe el archivo, lo copio"
         copy2("/external_files/odoo.conf", CONFIGFILE_PATH)
-    else:
-        print "Ya existe, por lo que no lo copio"
 
     if getenv('DB_SERVER'):
         change_value(CONFIGFILE_PATH, 'db_host', 'db_host = %s' % getenv('DB_SERVER'))
@@ -63,7 +60,6 @@ def main():
     if get_owner(FILESTORE_PATH) != "odoo":
         call(["chown", "-R", "odoo", FILESTORE_PATH])
 
-    #call(["su", "odoo", "-c", '"/home/odoo/instance/odoo/openerp-server --config=/home/odoo/instance/config/odoo.conf"'])
     call(["/usr/bin/supervisord"])
 
 if __name__ == '__main__':
