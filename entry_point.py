@@ -38,33 +38,6 @@ def get_owner(file_name):
     file_stat = stat(file_name)
     return pwd.getpwuid(file_stat.st_uid).pw_name
 
-
-def main():
-    '''
-    Main entry point function
-    '''
-
-    if not path.isfile(CONFIGFILE_PATH):
-        copy2("/external_files/odoo.conf", CONFIGFILE_PATH)
-
-    if getenv('DB_SERVER'):
-        change_value(CONFIGFILE_PATH, 'db_host', 'db_host = %s' % getenv('DB_SERVER'))
-
-    if getenv('DB_PORT'):
-        change_value(CONFIGFILE_PATH, 'db_port', 'db_port = %s' % getenv('DB_PORT'))
-
-    if getenv('DB_NAME'):
-        change_value(CONFIGFILE_PATH, 'db_name', 'db_name = %s' % getenv('DB_NAME'))
-
-    if getenv('DB_FILTER'):
-        change_value(CONFIGFILE_PATH, 'db_filter', 'db_filter = %s' % getenv('DB_FILTER'))
-
-    if getenv('DATA_DIR'):
-        change_value(CONFIGFILE_PATH, 'data_dir', 'data_dir = %s' % getenv('DATA_DIR'))
-
-    if get_owner(CONFIGFILE_PATH) != "odoo":
-        call(["chown", "-R", "odoo", CONFIGFILE_PATH])
-
     call(["/usr/bin/supervisord"])
 
 if __name__ == '__main__':
