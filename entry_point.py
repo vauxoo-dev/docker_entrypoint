@@ -59,8 +59,11 @@ def main():
     if get_owner(CONFIGFILE_PATH) != "odoo":
         call(["chown", "-R", "odoo", CONFIGFILE_PATH])
 
+    if not path.isfile(FILESTORE_PATH):
+        call(["mkdir", "-p", FILESTORE_PATH])
+
     if get_owner(FILESTORE_PATH) != "odoo":
-        call(["chown", "-R", "odoo", FILESTORE_PATH])
+        call(["chown", "-R", "odoo:odoo", "/home/odoo"])
 
 
 if __name__ == '__main__':
