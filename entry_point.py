@@ -48,7 +48,7 @@ def main():
     '''
 
     if not path.isfile(CONFIGFILE_PATH):
-        copy2("/external_files/odoo.conf", CONFIGFILE_PATH)
+        copy2("/external_files/.openerp_serverrc", CONFIGFILE_PATH)
 
     if getenv('DB_SERVER'):
         change_value(CONFIGFILE_PATH, 'db_host', 'db_host = %s' % getenv('DB_SERVER'))
