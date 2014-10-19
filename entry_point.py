@@ -39,8 +39,6 @@ def get_owner(file_name):
     file_stat = stat(file_name)
     return pwd.getpwuid(file_stat.st_uid).pw_name
 
-    call(["/usr/bin/supervisord"])
-
 
 def main():
     '''
@@ -64,6 +62,8 @@ def main():
 
     if get_owner(FILESTORE_PATH) != "odoo":
         call(["chown", "-R", "odoo:odoo", "/home/odoo"])
+
+    call(["/usr/bin/supervisord"])
 
 
 if __name__ == '__main__':
