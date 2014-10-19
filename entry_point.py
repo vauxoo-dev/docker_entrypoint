@@ -10,7 +10,6 @@ from shutil import copy2
 import pwd
 import fileinput
 
-DATA_DIR = '/home/odoo/filestore'
 CONFIGFILE_PATH = '/home/odoo/instance/config/odoo.conf'
 
 
@@ -65,9 +64,6 @@ def main():
 
     if get_owner(CONFIGFILE_PATH) != "odoo":
         call(["chown", "-R", "odoo", CONFIGFILE_PATH])
-
-    if get_owner(DATA_DIR) != "odoo":
-        call(["chown", "-R", "odoo", DATA_DIR])
 
     call(["/usr/bin/supervisord"])
 
