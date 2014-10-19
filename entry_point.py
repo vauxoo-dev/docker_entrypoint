@@ -10,7 +10,7 @@ from shutil import copy2
 import pwd
 import fileinput
 
-FILESTORE_PATH = '/home/odoo/instance/odoo/openerp/filestore'
+FILESTORE_PATH = '/home/odoo/.local/share/Odoo'
 CONFIGFILE_PATH = '/home/odoo/.openerp_serverrc'
 
 
