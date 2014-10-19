@@ -11,7 +11,7 @@ import pwd
 import fileinput
 
 FILESTORE_PATH = '/home/odoo/instance/odoo/openerp/filestore'
-CONFIGFILE_PATH = '/home/odoo/instance/config/odoo.conf'
+CONFIGFILE_PATH = '/home/odoo/.openerp_serverrc'
 
 
 def change_value(file_name, search_str, new_str):
