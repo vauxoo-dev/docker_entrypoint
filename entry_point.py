@@ -9,6 +9,7 @@ from subprocess import call
 from shutil import copy2
 import pwd
 import fileinput
+import redis
 
 FILESTORE_PATH = '/home/odoo/.local/share/Odoo'
 CONFIGFILE_PATH = '/home/odoo/.openerp_serverrc'
@@ -40,6 +41,17 @@ def get_owner(file_name):
     return pwd.getpwuid(file_stat.st_uid).pw_name
 
 
+def get_redis_vars(var_name):
+    '''
+    This function gets values from a has stored in redis
+
+    :param str var_name: The key or var name
+    :returns: Value
+    '''
+    r_server = redis.Redis(getenv('REDIS_SERVER'))
+    return r_server.hget(getenv('STAGE'), var_name)
+
+
 def main():
     '''
     Main entry point function
@@ -48,13 +60,18 @@ def main():
     if not path.isfile(CONFIGFILE_PATH):
         copy2("/external_files/.openerp_serverrc", CONFIGFILE_PATH)
 
-    if getenv('DB_SERVER'):
-        change_value(CONFIGFILE_PATH, 'db_host', 'db_host = %s' % getenv('DB_SERVER'))
+    if getenv('REDIS_SERVER'):
+        getter_func = get_redis_vars
+    else:
+        getter_func = getenv
 
-    if getenv('DB_PORT'):
-        change_value(CONFIGFILE_PATH, 'db_port', 'db_port = %s' % getenv('DB_PORT'))
+    if getter_func('DB_HOST'):
+        change_value(CONFIGFILE_PATH, 'db_host', 'db_host = %s' % getter_func('DB_HOST'))
 
-    if get_owner(CONFIGFILE_PATH) != "odoo":
+    if getter_func('DB_PORT'):
+        change_value(CONFIGFILE_PATH, 'db_port', 'db_port = %s' % getter_func('DB_PORT'))
+
+    if getter_func(CONFIGFILE_PATH) != "odoo":
         call(["chown", "-R", "odoo", CONFIGFILE_PATH])
 
     if not path.isfile(FILESTORE_PATH):
