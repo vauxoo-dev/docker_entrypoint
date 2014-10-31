@@ -82,7 +82,7 @@ def main():
     '''
     logger.info("Entering entry point main function")
     if not path.isfile(CONFIGFILE_PATH):
-        copy2("/external_files/.openerp_serverrc", CONFIGFILE_PATH)
+        copy2("/external_files/openerp_serverrc", CONFIGFILE_PATH)
 
     if getenv('REDIS_SERVER'):
         getter_func = get_redis_vars
