@@ -11,13 +11,12 @@ import pwd
 import fileinput
 import redis
 import logging
+import sys
+import traceback
 
-formatter = logging.Formatter(fmt='%(levelname)s:[%(asctime)s] - %(name)s.%(module)s - %(message)s')
-handler = logging.StreamHandler()
-handler.setFormatter(formatter)
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(levelname)s:[%(asctime)s] - %(name)s.%(module)s - %(message)s')
 logger = logging.getLogger("entry_point")
-logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
 
 FILESTORE_PATH = '/home/odoo/.local/share/Odoo'
 CONFIGFILE_PATH = getenv('ODOO_CONFIG_FILE') and getenv('ODOO_CONFIG_FILE') or '/home/odoo/.openerp_serverrc'
@@ -68,7 +67,13 @@ def get_redis_vars(var_name):
     :returns: Value
     '''
     r_server = redis.Redis(getenv('REDIS_SERVER'))
-    return r_server.hget(getenv('STAGE'), var_name)
+    try:
+        res = r_server.hget(getenv('STAGE'), var_name)
+    except redis.exceptions.ConnectionError as res_error:
+        logger.exception("Error trying to read from redis server: %s", res_error.strerror)
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        traceback.print_tb(exc_traceback, limit=1, file=sys.stdout)
+    return res
 
 
 def main():
