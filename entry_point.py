@@ -20,7 +20,7 @@ logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
 FILESTORE_PATH = '/home/odoo/.local/share/Odoo'
-CONFIGFILE_PATH = '/home/odoo/.openerp_serverrc'
+CONFIGFILE_PATH = getenv('ODOO_CONFIG_FILE') and getenv('ODOO_CONFIG_FILE') or '/home/odoo/.openerp_serverrc'
 
 
 def change_values(file_name, getter_func):
