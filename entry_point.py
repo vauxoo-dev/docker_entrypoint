@@ -70,7 +70,7 @@ def get_redis_vars(var_name):
     try:
         res = r_server.hget(getenv('STAGE'), var_name)
     except redis.exceptions.ConnectionError as res_error:
-        logger.exception("Error trying to read from redis server: %s", res_error.strerror)
+        logger.exception("Error trying to read from redis server: %s", res_error)
         exc_type, exc_value, exc_traceback = sys.exc_info()
         traceback.print_tb(exc_traceback, limit=1, file=sys.stdout)
     return res
