@@ -25,11 +25,10 @@ CONFIGFILE_PATH = '/home/odoo/.openerp_serverrc'
 
 def change_values(file_name, getter_func):
     '''
-    Changes value from a config file
+    Changes value from a config file, new values are gotten from redis server or env vars
 
     :param str file_name: Config file name
-    :param str search_str: Search sting
-    :param str new_str: New string that
+    :getter_func: Fucnttion that will be used for getting new values
     '''
     for line in fileinput.input(file_name, inplace=True):
         new_str = line
