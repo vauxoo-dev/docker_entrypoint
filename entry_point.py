@@ -33,15 +33,15 @@ def change_values(file_name, getter_func):
     '''
     for line in fileinput.input(file_name, inplace=True):
         new_str = line
-        logger.debug("Line readed: %s", line)
+        logger.debug("Line readed: %s", line.strip())
         parts = line.split("=")
         logger.debug("Parts: %s", len(parts))
         if len(parts) > 1:
-            search_str = parts[0].upper()
+            search_str = parts[0].upper().strip()
             value = getter_func(search_str)
+            logger.debug("Search for: %s and value is: %s", search_str, value)
             if value:
                 new_str = "%s = %s" % (parts[0], value)
-                logger.debug("New line will be: %s", new_str)
         print(new_str.replace('\n', ''))
 
 
