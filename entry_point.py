@@ -10,7 +10,10 @@ from shutil import copy2
 import pwd
 import fileinput
 import redis
+import logging
 
+logger = logging.getLogger("entry_point")
+logger.setLevel(logging.DEBUG)
 
 FILESTORE_PATH = '/home/odoo/.local/share/Odoo'
 CONFIGFILE_PATH = '/home/odoo/.openerp_serverrc'
@@ -26,12 +29,15 @@ def change_values(file_name, getter_func):
     '''
     for line in fileinput.input(file_name, inplace=True):
         new_str = line
+        logger.debug("Line readed: %s", line)
         parts = line.split("=")
+        logger.debug("Parts: %s", len(parts))
         if len(parts) > 1:
             search_str = parts[0].upper()
             value = getter_func(search_str)
             if value:
                 new_str = "%s = %s" % (parts[0], value)
+                logger.debug("New line will be: %s", new_str)
         print(new_str.replace('\n', ''))
 
 
@@ -47,6 +53,7 @@ def get_owner(file_name):
         owner = pwd.getpwuid(file_stat.st_uid).pw_name
     except KeyError:
         owner = "None"
+    logger.debug("Owner of %s is %s", file_name, owner)
     return owner
 
 
@@ -65,14 +72,16 @@ def main():
     '''
     Main entry point function
     '''
-
+    logger.info("Entering entry point main function")
     if not path.isfile(CONFIGFILE_PATH):
         copy2("/external_files/.openerp_serverrc", CONFIGFILE_PATH)
 
     if getenv('REDIS_SERVER'):
         getter_func = get_redis_vars
+        logger.info("Using redis server: %s", getenv('REDIS_SERVER'))
     else:
         getter_func = getenv
+        logger.info("Using env vars")
 
     change_values(CONFIGFILE_PATH, getter_func)
 
@@ -81,7 +90,7 @@ def main():
 
     if get_owner(FILESTORE_PATH) != "odoo":
         call(["chown", "-R", "odoo:odoo", "/home/odoo"])
-
+    logger.info("All changes made, now will run supervidord")
     call(["/usr/bin/supervisord"])
 
 
