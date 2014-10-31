@@ -25,14 +25,13 @@ def change_values(file_name, getter_func):
     :param str new_str: New string that
     '''
     for line in fileinput.input(file_name, inplace=True):
+        new_str = line
         parts = line.split("=")
         if len(parts) > 1:
             search_str = parts[0].upper()
             value = getter_func(search_str)
             if value:
                 new_str = "%s = %s" % (parts[0], value)
-            else:
-                new_str = line
         print(new_str.replace('\n', ''))
 
 
