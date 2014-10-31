@@ -12,7 +12,11 @@ import fileinput
 import redis
 import logging
 
+formatter = logging.Formatter(fmt='%(levelname)s:[%(asctime)s] - %(name)s.%(module)s - %(message)s')
+handler = logging.StreamHandler()
+handler.setFormatter(formatter)
 logger = logging.getLogger("entry_point")
+logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
 FILESTORE_PATH = '/home/odoo/.local/share/Odoo'
