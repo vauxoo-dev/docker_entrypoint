@@ -66,6 +66,7 @@ def get_redis_vars(var_name):
     :param str var_name: The key or var name
     :returns: Value
     '''
+    res = None
     r_server = redis.Redis(getenv('REDIS_SERVER'))
     try:
         res = r_server.hget(getenv('STAGE'), var_name)
