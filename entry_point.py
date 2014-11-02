@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.DEBUG,
                     format='%(levelname)s:[%(asctime)s] - %(name)s.%(module)s - %(message)s')
 logger = logging.getLogger("entry_point")
 
-FILESTORE_PATH = '/home/odoo/.local/share/Odoo'
+FILESTORE_PATH = getenv('ODOO_FILESTORE_PATH') and getenv('ODOO_FILESTORE_PATH') or '/home/odoo/.local/share/Odoo/filestore'
 CONFIGFILE_PATH = getenv('ODOO_CONFIG_FILE') and getenv('ODOO_CONFIG_FILE') or '/home/odoo/.openerp_serverrc'
 
 
