@@ -97,8 +97,7 @@ def main():
     if not path.isfile(FILESTORE_PATH):
         call(["mkdir", "-p", FILESTORE_PATH])
 
-    if get_owner(FILESTORE_PATH) != "odoo":
-        call(["chown", "-R", "odoo:odoo", "/home/odoo"])
+    call(["chown", "-R", "odoo:odoo", "/home/odoo"])
     logger.info("All changes made, now will run supervidord")
     call(["/usr/bin/supervisord"])
 
