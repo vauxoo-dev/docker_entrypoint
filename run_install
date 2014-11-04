@@ -1,0 +1,126 @@
+#!/usr/bin/env python
+
+"""
+This script make a pull or clone from addons branches.
+Require a addons_branches_conf.py file with a dictionary
+ Example
+    "hr": {
+        'branch': "{ODOO_VERSION}",
+        'repo': "git@github.com:Vauxoo/hr.git"
+    },
+Require a enviroment variables:
+   VERSION -> Odoo Version. Example 8.0
+   ODOO_REPO -> Odoo Repo. Example odoo/odoo Default odoo/odoo.
+   ADDONS_PATH -> Path to download addons.
+   ODOO_SERVER_PATH -> Path to download odoo server repo.
+"""
+
+import os
+import subprocess
+import sys
+
+def run(l,env=None):
+    #log("run",l)
+    env = dict(os.environ, **env) if env else None
+    if isinstance(l,list):
+        print "run:", ' '.join( l )
+        if env:
+            rc=os.spawnvpe(os.P_WAIT, l[0], l, env)
+        else:
+            rc=os.spawnvp(os.P_WAIT, l[0], l)
+    elif isinstance(l,str):
+        print "run:", l
+        tmp=['sh','-c',l]
+        if env:
+            rc=os.spawnvpe(os.P_WAIT, tmp[0], tmp, env)
+        else:
+            rc=os.spawnvp(os.P_WAIT, tmp[0], tmp)
+    #log("run", rc=rc)
+    return rc
+
+def run_output(l, cwd=None):
+    #log("run_output",l)
+    print "run output:", ' '.join( l ), "into", cwd
+    return subprocess.Popen(l, stdout=subprocess.PIPE, cwd=cwd).communicate()[0]
+
+def mkdirs(dirs):
+    if isinstance(dirs, basestring) or isinstance(dirs, str):
+        dirs = [dirs]
+    for d in dirs:
+        if not os.path.exists(d):
+            os.makedirs(d)
+
+def get_cmd_pull(branch_datas, prefix_local_name=None, odoo_version=None):
+    for local_name in branch_datas:
+        #branch_name = branch_datas[local_name]['branch']
+        #repo_name = branch_datas[local_name]['repo']
+        if prefix_local_name is None:
+            prefix_local_name = '.'
+        branch_datas[local_name].update({
+            'local_name': os.path.join(prefix_local_name, local_name),
+            'branch': branch_datas[local_name]['branch'].format(
+                ODOO_VERSION = odoo_version),
+        })
+        # TODO: Get from a regex url of lp and git
+        if 'lp:' in branch_datas[local_name]['repo']:
+            if os.path.isdir(os.path.join(
+                branch_datas[local_name]['local_name'], '.bzr')):
+                cmd = "bzr update {0[local_name]}"\
+                      .format(branch_datas[local_name])
+            else:
+                mkdirs(branch_datas[local_name]['local_name'])
+                cmd = "bzr checkout {0[repo]}/{0[branch]} --lightweight "\
+                      "{0[local_name]}".format(branch_datas[local_name])
+        elif 'git' in branch_datas[local_name]['repo']:
+            if os.path.isdir(os.path.join(branch_datas[local_name]['local_name'], '.git')):
+                cmd = "git --git-dir={git_dir} pull".format(
+                        git_dir = os.path.join(
+                            branch_datas[local_name]['local_name'], '.git'))
+            else:
+                mkdirs(branch_datas[local_name]['local_name'])
+                cmd = "git clone -b {0[branch]} --single-branch --depth=1"\
+                      " {0[repo]} {0[local_name]}".format(branch_datas[local_name])
+        run(cmd)
+
+def main():
+    ODOO_VERSION = os.environ.get("VERSION")
+    if ODOO_VERSION is None:
+        #ODOO_VERSION = sys.argv[1]
+        raise "Set VERSION variable"
+        #print("WARNING: no env variable set for VERSION. "
+        #          "Using '%s'" % ODOO_VERSION)
+
+    IS_TRAVIS = os.environ.get("TRAVIS_BUILD_DIR") and True or False
+    ADDONS_GLOBAL_PATH = IS_TRAVIS and os.environ.get("HOME") or\
+                         os.environ.get("ADDONS_PATH")
+
+    ODOO_REPO = os.environ.get("ODOO_REPO")
+    if ODOO_REPO is None:
+        ODOO_REPO = "odoo/odoo"
+        print("WARNING: no env variable set for ODOO_REPO. "
+                  "Using '%s'" % ODOO_REPO)
+    fname_branches_conf = None
+    if len(sys.argv) >= 2:
+        fname_branches_conf = sys.argv[1]
+        if not os.path.isfile(fname_branches_conf):
+            fname_branches_conf = None
+    if fname_branches_conf is None:
+        raise "First param should be a real file name of branch conf"
+    ADDONS_BRANCHES = eval(open(fname_branches_conf).read())
+    get_cmd_pull(ADDONS_BRANCHES, ADDONS_GLOBAL_PATH, ODOO_VERSION)
+
+    if not IS_TRAVIS:
+        ODOO_SERVER_PATH = os.environ.get('ODOO_SERVER_PATH')
+        if ODOO_SERVER_PATH is None:
+            raise "Set ODOO_SERVER_PATH variable"
+        SERVER_BRANCHES = {
+            "odoo": {
+                'branch': "{ODOO_VERSION}",
+                'repo': "git@github.com:{ODOO_REPO}.git"\
+                          .format(ODOO_REPO = ODOO_REPO),
+            }
+        }
+        get_cmd_pull(SERVER_BRANCHES, ODOO_SERVER_PATH, ODOO_VERSION)
+
+if __name__ == '__main__':
+    main()
