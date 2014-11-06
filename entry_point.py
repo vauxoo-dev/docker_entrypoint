@@ -68,8 +68,13 @@ def get_redis_vars(var_name):
     '''
     res = None
     r_server = redis.Redis(getenv('REDIS_SERVER'))
+    if getenv('CLIENT_NAME'):
+        key = '%s_%s' % (getenv('CLIENT_NAME'), getenv('STAGE'))
+    else:
+        key = getenv('STAGE')
+
     try:
-        res = r_server.hget(getenv('STAGE'), var_name)
+        res = r_server.hget(key, var_name)
     except redis.exceptions.ConnectionError as res_error:
         logger.exception("Error trying to read from redis server: %s", res_error)
         exc_type, exc_value, exc_traceback = sys.exc_info()
