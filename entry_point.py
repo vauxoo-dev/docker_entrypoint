@@ -18,9 +18,13 @@ logging.basicConfig(level=logging.DEBUG,
                     format='%(levelname)s:[%(asctime)s] - %(name)s.%(module)s - %(message)s')
 logger = logging.getLogger("entry_point")
 
-FILESTORE_PATH = getenv('ODOO_FILESTORE_PATH') and getenv('ODOO_FILESTORE_PATH') or '/home/odoo/.local/share/Odoo/filestore'
-CONFIGFILE_PATH = getenv('ODOO_CONFIG_FILE') and getenv('ODOO_CONFIG_FILE') or '/home/odoo/.openerp_serverrc'
-
+USER_NAME = getenv('ODOO_USER') and getenv('ODOO_USER') or 'odoo'
+FILESTORE_PATH = getenv('ODOO_FILESTORE_PATH') \
+                 and getenv('ODOO_FILESTORE_PATH') \
+                 or '/home/%s/.local/share/Odoo/filestore' % USER_NAME
+CONFIGFILE_PATH = getenv('ODOO_CONFIG_FILE') \
+                  and getenv('ODOO_CONFIG_FILE') \
+                  or '/home/%s/.openerp_serverrc' % USER_NAME
 
 def change_values(file_name, getter_func):
     '''
@@ -102,7 +106,7 @@ def main():
     if not path.isfile(FILESTORE_PATH):
         call(["mkdir", "-p", FILESTORE_PATH])
 
-    call(["chown", "-R", "odoo:odoo", "/home/odoo"])
+    call(["chown", "-R", "%s:%s" % (USER_NAME, USER_NAME), "/home/%s" % USER_NAME])
     logger.info("All changes made, now will run supervidord")
     call(["/usr/bin/supervisord"])
 
