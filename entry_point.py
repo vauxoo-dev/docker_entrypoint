@@ -106,6 +106,7 @@ def main():
     if not path.isfile(FILESTORE_PATH):
         call(["mkdir", "-p", FILESTORE_PATH])
 
+    call(["chmod", "ugo+rwxt", "/tmp"])
     call(["chown", "-R", "%s:%s" % (USER_NAME, USER_NAME), "/home/%s" % USER_NAME])
     logger.info("All changes made, now will run supervidord")
     call(["/usr/bin/supervisord"])
