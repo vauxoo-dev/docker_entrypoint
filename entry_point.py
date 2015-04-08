@@ -14,21 +14,26 @@ import logging
 import sys
 import traceback
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(levelname)s:[%(asctime)s] - %(name)s.%(module)s - %(message)s')
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(levelname)s:[%(asctime)s] - %(name)s.%(module)s - %(message)s')
 logger = logging.getLogger("entry_point")
 
 USER_NAME = getenv('ODOO_USER') and getenv('ODOO_USER') or 'odoo'
+
 FILESTORE_PATH = getenv('ODOO_FILESTORE_PATH') \
-                 and getenv('ODOO_FILESTORE_PATH') \
-                 or '/home/%s/.local/share/Odoo/filestore' % USER_NAME
+    and getenv('ODOO_FILESTORE_PATH') \
+    or '/home/%s/.local/share/Odoo/filestore' % USER_NAME
+
 CONFIGFILE_PATH = getenv('ODOO_CONFIG_FILE') \
-                  and getenv('ODOO_CONFIG_FILE') \
-                  or '/home/%s/.openerp_serverrc' % USER_NAME
+    and getenv('ODOO_CONFIG_FILE') \
+    or '/home/%s/.openerp_serverrc' % USER_NAME
+
 
 def change_values(file_name, getter_func):
     '''
-    Changes value from a config file, new values are gotten from redis server or env vars
+    Changes value from a config file, new values are gotten from redis server
+    or env vars
 
     :param str file_name: Config file name
     :getter_func: Fucnttion that will be used for getting new values
@@ -80,7 +85,8 @@ def get_redis_vars(var_name):
     try:
         res = r_server.hget(key, var_name)
     except redis.exceptions.ConnectionError as res_error:
-        logger.exception("Error trying to read from redis server: %s", res_error)
+        logger.exception("Error trying to read from redis server: %s",
+                         res_error)
         exc_type, exc_value, exc_traceback = sys.exc_info()
         traceback.print_tb(exc_traceback, limit=1, file=sys.stdout)
     return res
@@ -107,7 +113,8 @@ def main():
         call(["mkdir", "-p", FILESTORE_PATH])
 
     call(["chmod", "ugo+rwxt", "/tmp"])
-    call(["chown", "-R", "%s:%s" % (USER_NAME, USER_NAME), "/home/%s" % USER_NAME])
+    call(["chown", "-R", "%s:%s" % (USER_NAME, USER_NAME),
+          "/home/%s" % USER_NAME])
     logger.info("All changes made, now will run supervidord")
     call(["/usr/bin/supervisord"])
 
