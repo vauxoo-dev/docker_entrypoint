@@ -14,7 +14,7 @@ import logging
 import sys
 import traceback
 import string
-import raandom
+import random
 
 logging.basicConfig(
     level=logging.DEBUG,
