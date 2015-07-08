@@ -13,6 +13,8 @@ import redis
 import logging
 import sys
 import traceback
+import string
+import raandom
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -48,6 +50,10 @@ def change_values(file_name, getter_func):
             value = getter_func(search_str)
             logger.debug("Search for: %s and value is: %s", search_str, value)
             if value:
+                new_str = "%s = %s" % (parts[0], value)
+            if search_str == 'ADMIN_PASSWD' and \
+                (not value or value == 'admin'):
+                value = ''.join(random.choice(string.letters+string.digits) for i in range(12))
                 new_str = "%s = %s" % (parts[0], value)
         print(new_str.replace('\n', ''))
 
