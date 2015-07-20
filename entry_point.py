@@ -112,7 +112,10 @@ def main():
     if not path.exists(FILESTORE_PATH):
         call(["mkdir", "-p", FILESTORE_PATH])
 
+    logger.info("Setting permissions")
+    logger.debug("Changing /tmp to 'ugo+rwxt'")
     call(["chmod", "ugo+rwxt", "/tmp"])
+    logger.debug("Changing '/home/%s' owner to '%s:%s'", USER_NAME, USER_NAME, USER_NAME)
     call(["chown", "-R", "%s:%s" % (USER_NAME, USER_NAME),
           "/home/%s" % USER_NAME])
     logger.info("All changes made, now will run supervisord")
