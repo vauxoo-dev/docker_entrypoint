@@ -38,7 +38,7 @@ def change_values(file_name, getter_func):
     or env vars
 
     :param str file_name: Config file name
-    :getter_func: Fucnttion that will be used for getting new values
+    :getter_func: Function that will be used for getting new values
     '''
     for line in fileinput.input(file_name, inplace=True):
         new_str = line
@@ -49,12 +49,11 @@ def change_values(file_name, getter_func):
             search_str = parts[0].upper().strip()
             value = getter_func(search_str)
             logger.debug("Search for: %s and value is: %s", search_str, value)
-            if value:
-                new_str = "%s = %s" % (parts[0], value)
             if search_str == 'ADMIN_PASSWD' and \
                 (not value or value == 'admin'):
                 value = ''.join(random.choice(string.letters+string.digits) for i in range(12))
-                new_str = "%s = %s" % (parts[0], value)
+            if value:
+                new_str = "%s = %s" % (parts[0].strip(), value.strip())
         print(new_str.replace('\n', ''))
 
 
@@ -115,13 +114,16 @@ def main():
 
     change_values(CONFIGFILE_PATH, getter_func)
 
-    if not path.isfile(FILESTORE_PATH):
+    if not path.exists(FILESTORE_PATH):
         call(["mkdir", "-p", FILESTORE_PATH])
 
+    logger.info("Setting permissions")
+    logger.debug("Changing /tmp to 'ugo+rwxt'")
     call(["chmod", "ugo+rwxt", "/tmp"])
+    logger.debug("Changing '/home/%s' owner to '%s:%s'", USER_NAME, USER_NAME, USER_NAME)
     call(["chown", "-R", "%s:%s" % (USER_NAME, USER_NAME),
           "/home/%s" % USER_NAME])
-    logger.info("All changes made, now will run supervidord")
+    logger.info("All changes made, now will run supervisord")
     call(["/usr/bin/supervisord"])
 
 
