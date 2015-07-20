@@ -48,7 +48,7 @@ def change_values(file_name, getter_func):
             value = getter_func(search_str)
             logger.debug("Search for: %s and value is: %s", search_str, value)
             if value:
-                new_str = "%s = %s" % (parts[0], value)
+                new_str = "%s = %s" % (parts[0].strip(), value.strip())
         print(new_str.replace('\n', ''))
 
 
