@@ -36,7 +36,7 @@ def change_values(file_name, getter_func):
     or env vars
 
     :param str file_name: Config file name
-    :getter_func: Fucnttion that will be used for getting new values
+    :getter_func: Function that will be used for getting new values
     '''
     for line in fileinput.input(file_name, inplace=True):
         new_str = line
@@ -115,7 +115,7 @@ def main():
     call(["chmod", "ugo+rwxt", "/tmp"])
     call(["chown", "-R", "%s:%s" % (USER_NAME, USER_NAME),
           "/home/%s" % USER_NAME])
-    logger.info("All changes made, now will run supervidord")
+    logger.info("All changes made, now will run supervisord")
     call(["/usr/bin/supervisord"])
 
 
