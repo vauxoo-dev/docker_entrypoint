@@ -109,7 +109,7 @@ def main():
 
     change_values(CONFIGFILE_PATH, getter_func)
 
-    if not path.isfile(FILESTORE_PATH):
+    if not path.exists(FILESTORE_PATH):
         call(["mkdir", "-p", FILESTORE_PATH])
 
     call(["chmod", "ugo+rwxt", "/tmp"])
