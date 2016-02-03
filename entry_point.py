@@ -9,7 +9,6 @@ from subprocess import call
 from shutil import copy2
 import pwd
 import fileinput
-import redis
 import logging
 import sys
 import traceback
@@ -73,30 +72,6 @@ def get_owner(file_name):
     return owner
 
 
-def get_redis_vars(var_name):
-    '''
-    This function gets values from a has stored in redis
-
-    :param str var_name: The key or var name
-    :returns: Value
-    '''
-    res = None
-    r_server = redis.Redis(getenv('REDIS_SERVER'))
-    if getenv('CLIENT_NAME'):
-        key = '%s_%s' % (getenv('CLIENT_NAME'), getenv('STAGE'))
-    else:
-        key = getenv('STAGE')
-
-    try:
-        res = r_server.hget(key, var_name)
-    except redis.exceptions.ConnectionError as res_error:
-        logger.exception("Error trying to read from redis server: %s",
-                         res_error)
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        traceback.print_tb(exc_traceback, limit=1, file=sys.stdout)
-    return res
-
-
 def main():
     '''
     Main entry point function
@@ -105,12 +80,8 @@ def main():
     if not path.isfile(CONFIGFILE_PATH):
         copy2("/external_files/openerp_serverrc", CONFIGFILE_PATH)
 
-    if getenv('REDIS_SERVER'):
-        getter_func = get_redis_vars
-        logger.info("Using redis server: %s", getenv('REDIS_SERVER'))
-    else:
-        getter_func = getenv
-        logger.info("Using env vars")
+    getter_func = getenv
+    logger.info("Using env vars")
 
     change_values(CONFIGFILE_PATH, getter_func)
 
