@@ -95,7 +95,7 @@ def main():
     call(["chown", "-R", "%s:%s" % (USER_NAME, USER_NAME),
           "/home/%s" % USER_NAME])
     logger.info("All changes made, now will run supervisord")
-    call(["/usr/bin/supervisord"])
+    call(["supervisord", "-c", "/etc/supervisor/supervisord.conf"])
 
 
 if __name__ == '__main__':
