@@ -87,10 +87,13 @@ def main():
 
     if not path.exists(FILESTORE_PATH):
         call(["mkdir", "-p", FILESTORE_PATH])
+        call(["chown", "odoo:odoo", FILESTORE_PATH])
 
     logger.info("Setting permissions")
     logger.debug("Changing /tmp to 'ugo+rwxt'")
     call(["chmod", "ugo+rwxt", "/tmp"])
+    call(["chown", "odoo:odoo", "/home/odoo/.local/share/Odoo"])
+    call(["chown", "-R", "odoo:odoo", "/home/odoo/.ssh"])
     logger.info("All changes made, now will run supervisord")
     call(["supervisord", "-c", "/etc/supervisor/supervisord.conf"])
 
