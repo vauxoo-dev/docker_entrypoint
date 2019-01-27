@@ -141,6 +141,9 @@ def main():
 
     logger.info("All changes made, now will run supervisord")
     call(["supervisord", "-c", "/etc/supervisor/supervisord.conf"])
+    # Make sure that postgres starts if the instance has ssh access
+    if getenv('SSH_ACCESS'):
+        call(["python", "entrypoint_image"])
 
 
 if __name__ == '__main__':
