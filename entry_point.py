@@ -11,6 +11,7 @@ import logging
 from os import stat, path, getenv, environ
 import pwd
 import random
+import re
 import shlex
 from shutil import copy2
 import string
@@ -42,11 +43,11 @@ def change_values(file_name, getter_func):
     :param str file_name: Config file name
     :param getter_func: Function that will be used for getting new values
     """
+    logger.warning("Deprecation warning: please use ODOORC_ prefixed env vars to change odoo configuration")
     for line in fileinput.input(file_name, inplace=True):
         new_str = line
         logger.debug("Line readed: %s", line.strip())
         parts = line.split("=")
-        logger.debug("Parts: %s", len(parts))
         if len(parts) > 1:
             search_str = parts[0].upper().strip()
             value = getter_func(search_str)
@@ -57,6 +58,71 @@ def change_values(file_name, getter_func):
             if value:
                 new_str = "%s = %s" % (parts[0].strip(), value.strip())
         print(new_str.replace('\n', ''))
+
+
+def get_odoo_vars(getter_func, prefix="ODOORC_"):
+    """
+    Gets the variables using the getter_func, filter them by prefix and returns a dict with the proper values.
+    The getter_func should be a function that gets the values from whatever source is configured to and return them
+    as a dict.
+    :param getter_func: Function that will be used for getting new values, this should return a dict
+    in the following format:
+        {
+          "ODOORC_VARIABLE_NAME": 123,
+          "ODOORC_ANOTHER_VARIABLE_NAME": "asd"
+        }
+    :param prefix: Prefix used to get the variables that will be used for Odoo configuration
+    :return: A dict with the parms as keys, lowercase, without the prefix and
+    ready to compare or append to the Odoo configuration file
+    """
+    p = prefix.lower()
+    res = {}
+    r = re.compile("^"+p)
+    for key, value in getter_func():
+        k = key.lower()
+        if k.startswith(p):
+            var = r.sub("", k, 1)
+            res.update({var: value.strip()})
+    return res
+
+
+def append_values(file_name, getter_func):
+    """
+    Append values to a config file, new values are gotten from env vars. All the variables must start with ODOORC_
+    otherwise will be ignored (so we make sure not to append all variables)
+
+    :param str file_name: Config file name
+    :param getter_func: Function that will be used for getting new values, this should return a dict
+    in the following format:
+        {
+          "ODOORC_VARIABLE_NAME": 123,
+          "ODOORC_ANOTHER_VARIABLE_NAME": "asd"
+        }
+    """
+    variables = get_odoo_vars(getter_func)
+
+    for line in fileinput.input(file_name, inplace=True):
+        new_str = line
+        logger.debug("Line read: %s", line.strip())
+        parts = line.split("=")
+        logger.debug("Parts: %s", len(parts))
+        if len(parts) > 1:
+            search_str = parts[0].strip()
+            value = variables.get(search_str, None)
+            if search_str == 'ADMIN_PASSWD' and \
+               (not value or value == 'admin'):
+                value = ''.join(random.choice(string.letters+string.digits) for _ in range(12))
+            if value is not None:
+                del variables[search_str]
+                new_str = "%s = %s" % (parts[0].strip(), value.strip())
+        print(new_str.replace('\n', ''))
+
+    with open(file_name, "a") as config:
+        for key in variables:
+            value = variables[key]
+            new_str = "%s = %s" % (key, value)
+            logger.debug("Appending : %s ", new_str)
+            config.write(new_str)
 
 
 def get_owner(file_name):
@@ -83,23 +149,23 @@ def check_container_type():
     """
     container_config = {
         'worker': {
-            'http_enable': True,
-            'max_cron_threads': 0,
-            'workers': 0,
-            'xmlrpcs': False,
+            'odoorc_http_enable': True,
+            'odoorc_max_cron_threads': 0,
+            'odoorc_workers': 0,
+            'odoorc_xmlrpcs': False,
         },
         'cron': {
-            'http_enable': False,
-            'max_cron_threads': 1,
-            'workers': 0,
-            'xmlrpc': False,
-            'xmlrpcs': False,
+            'odoorc_http_enable': False,
+            'odoorc_max_cron_threads': 1,
+            'odoorc_workers': 0,
+            'odoorc_xmlrpc': False,
+            'odoorc_xmlrpcs': False,
         },
         'longpoll': {
-            'http_enable': False,
-            'max_cron_threads': 0,
-            'workers': getenv('WORKERS', 2),
-            'xmlrpcs': False,
+            'odoorc_http_enable': False,
+            'odoorc_max_cron_threads': 0,
+            'odoorc_workers': getenv('WORKERS', 2),
+            'odoorc_xmlrpcs': False,
         }
     }
     ctype = getenv('CONTAINER_TYPE', 'NORMAL').lower()
@@ -131,6 +197,7 @@ def main():
 
     check_container_type()
     change_values(CONFIGFILE_PATH, getter_func)
+    append_values(CONFIGFILE_PATH, environ.items)
     if not path.exists(FILESTORE_PATH):
         call(["mkdir", "-p", FILESTORE_PATH])
 
