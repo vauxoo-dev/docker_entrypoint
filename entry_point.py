@@ -122,7 +122,7 @@ def append_values(file_name, getter_func):
             value = variables[key]
             new_str = "%s = %s" % (key, value)
             logger.debug("Appending : %s ", new_str)
-            config.write(new_str)
+            config.write(new_str + "\n")
 
 
 def get_owner(file_name):
