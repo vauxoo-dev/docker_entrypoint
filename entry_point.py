@@ -86,6 +86,15 @@ def get_odoo_vars(getter_func, prefix="ODOORC_"):
     return res
 
 
+def update_sentry(config):
+    if config.get('sentry_enabled', False):
+        config.update({
+            'sentry_odoo_dir': '/home/odoo/instance/odoo',
+            'sentry_environment': config.get('instance_type')
+        })
+    return config
+
+
 def append_values(file_name, getter_func):
     """
     Append values to a config file, new values are gotten from env vars. All the variables must start with ODOORC_
@@ -100,6 +109,7 @@ def append_values(file_name, getter_func):
         }
     """
     variables = get_odoo_vars(getter_func)
+    variables = update_sentry(variables)
 
     for line in fileinput.input(file_name, inplace=True):
         new_str = line
