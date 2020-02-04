@@ -90,7 +90,7 @@ def update_sentry(config, getter_func):
     if config.get('sentry_enabled', False):
         config.update({
             'sentry_odoo_dir': '/home/odoo/instance/odoo',
-            'sentry_environment': getter_func.get('INSTANCE_TYPE', 'develop')
+            'sentry_environment': getter_func('INSTANCE_TYPE', 'develop')
         })
     return config
 
