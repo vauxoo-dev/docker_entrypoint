@@ -16,7 +16,7 @@ import re
 import shlex
 from shutil import copy2
 import string
-from subprocess import call
+from subprocess import call, check_output, CalledProcessError
 import sys
 
 
@@ -88,12 +88,99 @@ def get_odoo_vars(getter_func, prefix="ODOORC_"):
     return res
 
 
+def get_main_repo_path(getter_func):
+    """
+    Returns the directory of the repository whose commit identifies the build. Sentry reports that
+    commit as the release, and a traceback is about the customer code, not about the Odoo core it
+    runs on. The Odoo directory stays as the fallback for an image built without a main repository.
+
+    :param getter_func: Function that will be used for getting the value from the env vars
+    """
+    return path.join('/home/odoo/instance', getter_func('MAIN_REPO_PATH') or 'odoo')
+
+
+def run_git(repo_path, *args):
+    """
+    Returns the output of a git command run against the repository, empty when it fails.
+
+    --git-dir is deliberate: the -C form discovers the work tree first and refuses a repository
+    the running user does not own, which is what happens here when the entry point runs as root.
+
+    :param str repo_path: Directory of the repository
+    :param args: Arguments of the git command
+    """
+    git_dir = path.join(repo_path, '.git')
+    try:
+        output = check_output(['git', '--git-dir=%s' % git_dir] + list(args))
+    except (OSError, CalledProcessError):
+        logger.warning("Cannot run 'git %s' on %s", ' '.join(args), repo_path)
+        return ''
+    return output.decode().strip()
+
+
+def get_main_repo_branch(repo_path):
+    """
+    Returns the branch the repository is checked out at, empty when git cannot tell, which is the
+    case of a detached HEAD.
+
+    :param str repo_path: Directory of the repository
+    """
+    return run_git(repo_path, 'branch', '--show-current')
+
+
+def get_image_tag(getter_func):
+    """
+    Returns the tag of the image that is running, so an event names what to pull in order to
+    reproduce it, together with DOCKER_IMAGE_REPO:
+
+        docker run quay.io/vauxoo/customer:customer-19.0-51859fb
+
+    The version is what belongs here rather than the branch, because that is what the tag carries.
+    It goes to sentry_dist and not to sentry_release: the tag is fixed for the life of the
+    container, while the release has to keep up with a developer committing inside it, which is
+    what reading it from sentry_odoo_dir on every start of Odoo gives.
+
+    Empty when any of the three parts is missing.
+
+    :param getter_func: Function that will be used for getting the value from the env vars
+    """
+    main_app = getter_func('MAIN_APP')
+    version = getter_func('VERSION')
+    commit = run_git(get_main_repo_path(getter_func), 'rev-parse', '--short', 'HEAD')
+    if not (main_app and version and commit):
+        return ''
+    return '%s-%s-%s' % (main_app, version, commit)
+
+
+def get_sentry_environment(getter_func):
+    """
+    Returns the deployv stage and the branch of the main repository together. The stage alone does
+    not tell two Odoo versions apart: an event coming from an 18.0 production instance and one
+    coming from a 19.0 production instance both land under 'production'. A production or a staging
+    instance runs the stable branch and reports 'production-18.0', while a development instance
+    reports the branch it is working on, 'develop-18.0-dev1', which also says who to ask about
+    the event. VERSION is the fallback for a detached HEAD.
+
+    :param getter_func: Function that will be used for getting the value from the env vars
+    """
+    instance_type = getter_func('INSTANCE_TYPE', 'develop')
+    branch = get_main_repo_branch(get_main_repo_path(getter_func)) or getter_func('VERSION')
+    if not branch:
+        return instance_type
+    return '%s-%s' % (instance_type, branch)
+
+
 def update_sentry(config, getter_func):
     if config.get('sentry_enabled', False):
         config.update({
-            'sentry_odoo_dir': '/home/odoo/instance/odoo',
-            'sentry_environment': getter_func('INSTANCE_TYPE', 'develop')
+            'sentry_odoo_dir': get_main_repo_path(getter_func),
+            'sentry_environment': get_sentry_environment(getter_func)
         })
+        # A tag given through ODOORC_SENTRY_DIST wins, this is only the default.
+        if not config.get('sentry_dist'):
+            image_tag = get_image_tag(getter_func)
+            if image_tag:
+                config.update({'sentry_dist': image_tag})
     return config
 
 

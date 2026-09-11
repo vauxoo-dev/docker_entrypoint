@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 )
 
 type envConverter func([]string) map[string]string
+
 
 // GetOdooUser is for future use, so far we do not plan to use other user that odoo to execute the instance
 func GetOdooUser() string {
@@ -108,8 +110,79 @@ func UpdateOdooConfig(config *ini.File) error {
 	return nil
 }
 
+// GetMainRepoPath returns the directory of the repository whose commit identifies the build.
+// Sentry reports that commit as the release, and a traceback is about the customer code, not
+// about the Odoo core it runs on. The Odoo directory stays as the fallback for an image built
+// without a main repository.
+func GetMainRepoPath() string {
+	mainRepo := os.Getenv("MAIN_REPO_PATH")
+	if mainRepo == "" {
+		mainRepo = "odoo"
+	}
+	return filepath.Join("/home/odoo/instance", mainRepo)
+}
+
+// RunGit returns the output of a git command run against the repository at repoPath, empty when
+// it fails.
+//
+// --git-dir is deliberate: the -C form discovers the work tree first and refuses a repository the
+// running user does not own, which is what happens here when the entry point runs as root.
+func RunGit(repoPath string, args ...string) string {
+	gitArgs := append([]string{"--git-dir=" + filepath.Join(repoPath, ".git")}, args...)
+	out, err := exec.Command("git", gitArgs...).Output()
+	if err != nil {
+		log.Warningf("Cannot run 'git %s' on %s: %s", strings.Join(args, " "), repoPath, err)
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// GetMainRepoBranch returns the branch the repository at repoPath is checked out at, empty when
+// git cannot tell, which is the case of a detached HEAD.
+func GetMainRepoBranch(repoPath string) string {
+	return RunGit(repoPath, "branch", "--show-current")
+}
+
+// GetImageTag returns the tag of the image that is running, so an event names what to pull in
+// order to reproduce it, together with DOCKER_IMAGE_REPO:
+//
+//	docker run quay.io/vauxoo/customer:customer-19.0-51859fb
+//
+// The version is what belongs here rather than the branch, because that is what the tag carries.
+// It goes to sentry_dist and not to sentry_release: the tag is fixed for the life of the
+// container, while the release has to keep up with a developer committing inside it, which is
+// what reading it from sentry_odoo_dir on every start of Odoo gives.
+//
+// Empty when any of the three parts is missing.
+func GetImageTag(repoPath string) string {
+	mainApp := os.Getenv("MAIN_APP")
+	version := os.Getenv("VERSION")
+	commit := RunGit(repoPath, "rev-parse", "--short", "HEAD")
+	if mainApp == "" || version == "" || commit == "" {
+		return ""
+	}
+	return mainApp + "-" + version + "-" + commit
+}
+
+// GetSentryEnvironment returns the deployv stage and the branch of the main repository together.
+// The stage alone does not tell two Odoo versions apart: an event coming from an 18.0 production
+// instance and one coming from a 19.0 production instance both land under "production". A
+// production or a staging instance runs the stable branch and reports "production-18.0", while a
+// development instance reports the branch it is working on, "develop-18.0-dev1", which also
+// says who to ask about the event. VERSION is the fallback for a detached HEAD.
+func GetSentryEnvironment(instanceType string) string {
+	branch := GetMainRepoBranch(GetMainRepoPath())
+	if branch == "" {
+		branch = os.Getenv("VERSION")
+	}
+	if branch == "" {
+		return instanceType
+	}
+	return instanceType + "-" + branch
+}
+
 // UpdateSentry check if sentry is enabled in such case adds/updates the values in the ini condiguration file
-// setting the environment and the odoo instance path
+// setting the environment and the main repository path
 func UpdateSentry(config *ini.File, instanceType string) {
 	if !config.Section("options").HasKey("sentry_enabled") {
 		return
@@ -120,8 +193,14 @@ func UpdateSentry(config *ini.File, instanceType string) {
 		return
 	}
 	if isEnabled {
-		config.Section("options").Key("sentry_odoo_dir").SetValue("/home/odoo/instance/odoo")
-		config.Section("options").Key("sentry_environment").SetValue(instanceType)
+		config.Section("options").Key("sentry_odoo_dir").SetValue(GetMainRepoPath())
+		config.Section("options").Key("sentry_environment").SetValue(GetSentryEnvironment(instanceType))
+		// A tag given through ODOORC_SENTRY_DIST wins, this is only the default.
+		if config.Section("options").Key("sentry_dist").Value() == "" {
+			if imageTag := GetImageTag(GetMainRepoPath()); imageTag != "" {
+				config.Section("options").Key("sentry_dist").SetValue(imageTag)
+			}
+		}
 	}
 }
 
