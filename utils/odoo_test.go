@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/ini.v1"
 )
 
 func TestFilterStrings(t *testing.T) {
@@ -228,3 +229,113 @@ func TestParseVersion(t *testing.T) {
 //		}
 //	}
 //}
+
+// loadConfig builds an ini.File from the literal a rendered .odoorc would contain.
+func loadConfig(t *testing.T, content string) *ini.File {
+	t.Helper()
+	config, err := ini.Load([]byte(content))
+	assert.NoError(t, err)
+	return config
+}
+
+// TestSentrySectionPicksTheDeclaredSection covers the whole point of the change: the keys have to
+// be completed where the module reads them, which since 19.0 is a [sentry] section when the image
+// declares one, and [options] otherwise.
+func TestSentrySectionPicksTheDeclaredSection(t *testing.T) {
+	withSection := loadConfig(t, "[options]\ndb_host = localhost\n\n[sentry]\nsentry_enabled = true\n")
+	assert.Equal(t, "sentry", SentrySection(withSection).Name())
+
+	withoutSection := loadConfig(t, "[options]\nsentry_enabled = true\n")
+	assert.Equal(t, "options", SentrySection(withoutSection).Name())
+}
+
+// TestSentryValueReadsEitherSection: sentry_enabled moves to [sentry] as soon as that section
+// declares it, so looking only at [options] would make UpdateSentry skip the whole configuration.
+func TestSentryValueReadsEitherSection(t *testing.T) {
+	config := loadConfig(t, "[options]\nsentry_dist = from-options\n\n[sentry]\nsentry_enabled = true\n")
+	assert.Equal(t, "true", SentryValue(config, "sentry_enabled"))
+	assert.Equal(t, "from-options", SentryValue(config, "sentry_dist"))
+	assert.Equal(t, "", SentryValue(config, "sentry_release"))
+}
+
+func TestUpdateSentry(t *testing.T) {
+	t.Setenv("MAIN_REPO_PATH", "extra_addons/ircodoo")
+	t.Setenv("VERSION", "19.0")
+	mainRepo := "/home/odoo/instance/extra_addons/ircodoo"
+
+	t.Run("fills the declared section and leaves options alone", func(t *testing.T) {
+		config := loadConfig(t, "[options]\ndb_host = localhost\n\n[sentry]\nsentry_enabled = true\nsentry_odoo_dir =\n")
+		UpdateSentry(config, "develop")
+		assert.Equal(t, mainRepo, config.Section("sentry").Key("sentry_odoo_dir").Value())
+		assert.Equal(t, "develop-19.0", config.Section("sentry").Key("sentry_environment").Value())
+		assert.False(t, config.Section("options").HasKey("sentry_odoo_dir"),
+			"nothing may be written to the section the module does not read")
+	})
+
+	t.Run("keeps writing to options when no section is declared", func(t *testing.T) {
+		config := loadConfig(t, "[options]\nsentry_enabled = true\n")
+		UpdateSentry(config, "develop")
+		assert.Equal(t, mainRepo, config.Section("options").Key("sentry_odoo_dir").Value())
+		_, err := config.GetSection("sentry")
+		assert.Error(t, err, "no section is created out of nothing")
+	})
+
+	t.Run("a given odoo_dir wins over the derived one", func(t *testing.T) {
+		config := loadConfig(t, "[sentry]\nsentry_enabled = true\nsentry_odoo_dir = /somewhere/else\n")
+		UpdateSentry(config, "develop")
+		assert.Equal(t, "/somewhere/else", config.Section("sentry").Key("sentry_odoo_dir").Value())
+	})
+
+	t.Run("disabled and unparseable are left untouched", func(t *testing.T) {
+		for _, value := range []string{"false", "not-a-bool"} {
+			config := loadConfig(t, "[sentry]\nsentry_enabled = "+value+"\n")
+			UpdateSentry(config, "develop")
+			assert.False(t, config.Section("sentry").HasKey("sentry_environment"),
+				"nothing is derived when sentry is off, value %q", value)
+		}
+	})
+
+	t.Run("no sentry_enabled anywhere is a no-op", func(t *testing.T) {
+		config := loadConfig(t, "[options]\nnot_sentry = true\n")
+		UpdateSentry(config, "production")
+		assert.False(t, config.Section("options").HasKey("sentry_odoo_dir"))
+	})
+}
+
+// TestUpdateSentryReconcilesTheDisableFlag covers the two ways the flag and the module disagree.
+// The module does not parse sentry_enabled, it tests the string for truth, so "false" reads as on
+// there while strconv.ParseBool reads it as off here.
+func TestUpdateSentryReconcilesTheDisableFlag(t *testing.T) {
+	t.Setenv("MAIN_REPO_PATH", "extra_addons/ircodoo")
+	t.Setenv("VERSION", "19.0")
+
+	t.Run("false in the section is emptied so both readers agree", func(t *testing.T) {
+		config := loadConfig(t, "[sentry]\nsentry_enabled = False\nsentry_dsn = https://k@example/1\n")
+		UpdateSentry(config, "develop")
+		assert.Equal(t, "", config.Section("sentry").Key("sentry_enabled").Value(),
+			"a non-empty value is truthy to the module and would switch Sentry on")
+		assert.False(t, config.Section("sentry").HasKey("sentry_environment"),
+			"nothing is derived for a disabled instance")
+	})
+
+	t.Run("false in options is left alone", func(t *testing.T) {
+		config := loadConfig(t, "[options]\nsentry_enabled = False\n")
+		UpdateSentry(config, "develop")
+		assert.Equal(t, "False", config.Section("options").Key("sentry_enabled").Value(),
+			"versions reading [options] do not have this problem and are not touched")
+	})
+
+	t.Run("the flag is written into the section the module reads", func(t *testing.T) {
+		// A file declaring the section without the flag: UpdateFromVars appends the unmatched
+		// ODOORC_SENTRY_ENABLED to [options], and the module would never see it.
+		config := loadConfig(t, "[options]\nsentry_enabled = True\n\n[sentry]\nsentry_dsn = https://k@example/1\n")
+		UpdateSentry(config, "develop")
+		assert.Equal(t, "True", config.Section("sentry").Key("sentry_enabled").Value())
+	})
+
+	t.Run("a given environment is kept", func(t *testing.T) {
+		config := loadConfig(t, "[sentry]\nsentry_enabled = true\nsentry_environment = from-deployv\n")
+		UpdateSentry(config, "develop")
+		assert.Equal(t, "from-deployv", config.Section("sentry").Key("sentry_environment").Value())
+	})
+}

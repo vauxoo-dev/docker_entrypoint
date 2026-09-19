@@ -15,7 +15,6 @@ import (
 
 type envConverter func([]string) map[string]string
 
-
 // GetOdooUser is for future use, so far we do not plan to use other user that odoo to execute the instance
 func GetOdooUser() string {
 	user := os.Getenv("ODOO_USER")
@@ -181,25 +180,80 @@ func GetSentryEnvironment(instanceType string) string {
 	return instanceType + "-" + branch
 }
 
-// UpdateSentry check if sentry is enabled in such case adds/updates the values in the ini condiguration file
-// setting the environment and the main repository path
+// SentrySection returns the section the sentry keys have to be written to.
+//
+// Since 19.0 the OCA sentry module reads its configuration from a dedicated [sentry] section and
+// ignores [options] entirely, so a repository that wants Sentry there ships a file declaring that
+// section and the entry point appends it, as documented for /external_files/odoocfg. When the
+// section is present it is the one to complete; everything older keeps [options].
+//
+// Nothing is moved between sections on purpose. Whoever declared the section decides what lives
+// in it, and a configuration without one keeps behaving exactly as before.
+func SentrySection(config *ini.File) *ini.Section {
+	if section, err := config.GetSection("sentry"); err == nil {
+		return section
+	}
+	return config.Section("options")
+}
+
+// SentryValue returns the value of a sentry_ key wherever it currently lives, empty when it lives
+// nowhere. [sentry] is read first because that is where UpdateFromVars leaves an ODOORC_ variable
+// once the section declares the key.
+func SentryValue(config *ini.File, name string) string {
+	for _, sectionName := range []string{"sentry", "options"} {
+		section, err := config.GetSection(sectionName)
+		if err != nil {
+			continue
+		}
+		if section.HasKey(name) {
+			return section.Key(name).Value()
+		}
+	}
+	return ""
+}
+
+// UpdateSentry derives the values that describe the build into the section the sentry module
+// reads them from, when sentry is enabled.
 func UpdateSentry(config *ini.File, instanceType string) {
-	if !config.Section("options").HasKey("sentry_enabled") {
+	rawEnabled := SentryValue(config, "sentry_enabled")
+	if rawEnabled == "" {
 		return
 	}
-	sentryStr := config.Section("options").Key("sentry_enabled").Value()
-	isEnabled, err := strconv.ParseBool(sentryStr)
+	isEnabled, err := strconv.ParseBool(rawEnabled)
 	if err != nil {
 		return
 	}
-	if isEnabled {
-		config.Section("options").Key("sentry_odoo_dir").SetValue(GetMainRepoPath())
-		config.Section("options").Key("sentry_environment").SetValue(GetSentryEnvironment(instanceType))
-		// A tag given through ODOORC_SENTRY_DIST wins, this is only the default.
-		if config.Section("options").Key("sentry_dist").Value() == "" {
-			if imageTag := GetImageTag(GetMainRepoPath()); imageTag != "" {
-				config.Section("options").Key("sentry_dist").SetValue(imageTag)
-			}
+	section := SentrySection(config)
+	ownSection := section.Name() == "sentry"
+	if !isEnabled {
+		// The module does not parse this flag, it tests the string for truth, so "false" would
+		// switch Sentry ON while this function derives nothing and the events arrive with no
+		// environment and no dist. Empty is the only value both readers read as off. Only the
+		// dedicated section is touched: [options] is read by a version that does not have this
+		// problem.
+		if ownSection && section.HasKey("sentry_enabled") {
+			section.Key("sentry_enabled").SetValue("")
+		}
+		return
+	}
+	// The module reads this section and no other, so the flag has to be in it. A file that
+	// declares the section without the flag leaves ODOORC_SENTRY_ENABLED in [options], where
+	// UpdateFromVars appends a key it finds nowhere, and the module sees a fully configured
+	// section that it still refuses to initialize.
+	if ownSection {
+		section.Key("sentry_enabled").SetValue(rawEnabled)
+	}
+	// Every derived value is a default: what the environment gives wins, so DeployV can label an
+	// instance without this function discarding it.
+	if section.Key("sentry_odoo_dir").Value() == "" {
+		section.Key("sentry_odoo_dir").SetValue(GetMainRepoPath())
+	}
+	if section.Key("sentry_environment").Value() == "" {
+		section.Key("sentry_environment").SetValue(GetSentryEnvironment(instanceType))
+	}
+	if section.Key("sentry_dist").Value() == "" {
+		if imageTag := GetImageTag(GetMainRepoPath()); imageTag != "" {
+			section.Key("sentry_dist").SetValue(imageTag)
 		}
 	}
 }
